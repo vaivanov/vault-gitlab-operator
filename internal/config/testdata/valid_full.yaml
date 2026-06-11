@@ -1,0 +1,81 @@
+vault:
+  address: https://vault.internal:8200
+  tls:
+    ca_cert_file: /etc/vgo/vault-ca.pem
+  auth:
+    method: approle
+    approle:
+      role_id_env: VGO_VAULT_ROLE_ID
+      secret_id_file: /etc/vgo/vault-secret-id
+
+gitlab:
+  url: https://gitlab.internal
+  token_env: GITLAB_TOKEN
+  rate_limit: 10
+
+sync:
+  interval: 10m
+  jitter: 30s
+  concurrency: 8
+  on_masked_violation: skip-warn
+
+defaults:
+  vault_mount: kv
+  variable_type: env_var
+  protected: false
+  masked: false
+  raw: true
+  environment_scope: "*"
+  description: "Managed by vault-gitlab-operator"
+
+bundles:
+  backend-common:
+    - key: SENTRY_DSN
+      vault: { path: ci/common/sentry, field: dsn }
+    - key: NPM_TOKEN
+      vault: { path: ci/common/npm, field: token }
+      masked: true
+  deploy-keys:
+    - key: KUBECONFIG_STAGING
+      vault: { path: ci/deploy/staging, field: kubeconfig }
+      variable_type: file
+      environment_scope: staging
+    - key: KUBECONFIG_PROD
+      vault: { path: ci/deploy/prod, field: kubeconfig }
+      variable_type: file
+      protected: true
+      environment_scope: production
+
+targets:
+  instance:
+    variables:
+      - key: GLOBAL_REGISTRY_PASSWORD
+        vault: { path: ci/registry, field: password }
+        masked: true
+
+  groups:
+    - group: platform
+      bundles: [backend-common]
+      variables:
+        - key: GROUP_SIGNING_KEY
+          vault: { mount: kv-infra, path: ci/platform/signing, field: private_key }
+          variable_type: file
+          protected: true
+
+  projects:
+    - project: platform/backend
+      bundles: [backend-common, deploy-keys]
+      variables:
+        - key: DB_PASSWORD
+          vault: { path: ci/backend/db, field: password }
+          masked: true
+          protected: true
+          environment_scope: production
+          description: "Prod DB password"
+        - key: NPM_TOKEN
+          vault: { path: ci/backend/npm-override, field: token }
+          masked: true
+        - from_secret: { path: ci/backend/dotenv }
+          prefix: APP_
+    - project: "1234"
+      bundles: [backend-common]

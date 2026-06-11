@@ -1,0 +1,13 @@
+vault:
+  address: https://vault.example.com:8200
+
+gitlab:
+  url: https://gitlab.example.com
+  token_env: GITLAB_TOKEN
+
+targets:
+  projects:
+    - project: group/app
+      variables:
+        - key: API_KEY
+          vault: { path: ci/app, field: api_key }

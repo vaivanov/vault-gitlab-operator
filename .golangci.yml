@@ -1,0 +1,22 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - revive
+    - gosec
+    - errorlint
+    - usetesting
+    - ineffassign
+    - unused
+  settings:
+    gosec:
+      excludes:
+        - G404 # math/rand is fine for sync jitter
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec
