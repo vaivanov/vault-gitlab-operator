@@ -177,7 +177,7 @@ const (
 type TargetRef struct {
 	Kind TargetKind
 	Ref  string
-	ID   int
+	ID   int64
 }
 
 func (t TargetRef) String() string {
