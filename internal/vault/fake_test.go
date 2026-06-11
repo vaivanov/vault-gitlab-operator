@@ -22,6 +22,45 @@ type fakeVault struct {
 	metadataHits map[string]int
 	dataHits     map[string]int
 	sealed       bool
+
+	// credentials accepted by the fake auth endpoints
+	approleRoleID   string
+	approleSecretID string
+	k8sRole         string
+	loginCalls      int
+}
+
+// handleLogin implements POST /v1/auth/{approle|kubernetes}/login and
+// hands out f.token on success.
+func (f *fakeVault) handleLogin(w http.ResponseWriter, r *http.Request) {
+	var body map[string]string
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErrors(w, http.StatusBadRequest, "bad json")
+		return
+	}
+	switch r.URL.Path {
+	case "/v1/auth/approle/login":
+		if body["role_id"] != f.approleRoleID || body["secret_id"] != f.approleSecretID {
+			writeErrors(w, http.StatusBadRequest, "invalid role or secret ID")
+			return
+		}
+	case "/v1/auth/kubernetes/login":
+		if body["role"] != f.k8sRole || body["jwt"] == "" {
+			writeErrors(w, http.StatusForbidden, "permission denied")
+			return
+		}
+	default:
+		writeErrors(w, http.StatusNotFound, "unsupported auth mount")
+		return
+	}
+	f.loginCalls++
+	writeJSON(w, map[string]any{
+		"auth": map[string]any{
+			"client_token":   f.token,
+			"lease_duration": 3600,
+			"renewable":      false,
+		},
+	})
 }
 
 type fakeSecret struct {
@@ -65,6 +104,14 @@ func (f *fakeVault) handler() http.Handler {
 			writeErrors(w, http.StatusServiceUnavailable, "Vault is sealed")
 			return
 		}
+
+		// Auth endpoints are reachable without a token. The Vault client
+		// uses PUT for logical writes (POST is equivalent).
+		if strings.HasPrefix(r.URL.Path, "/v1/auth/") && (r.Method == http.MethodPost || r.Method == http.MethodPut) {
+			f.handleLogin(w, r)
+			return
+		}
+
 		if r.Header.Get("X-Vault-Token") != f.token {
 			writeErrors(w, http.StatusForbidden, "permission denied")
 			return

@@ -52,6 +52,7 @@ func run(args []string) int {
 	root.AddCommand(newValidateCmd(flags))
 	root.AddCommand(newOnceCmd(flags))
 	root.AddCommand(newDiffCmd(flags))
+	root.AddCommand(newDaemonCmd(flags))
 
 	root.SetArgs(args)
 	if err := root.Execute(); err != nil {

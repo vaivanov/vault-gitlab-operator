@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/vault/api"
@@ -29,6 +30,9 @@ type SecretSource interface {
 type Client struct {
 	api *api.Client
 	cfg config.VaultConfig
+
+	mu          sync.Mutex
+	loginSecret *api.Secret // last auth response, renewed by KeepAlive
 }
 
 // New builds a Client from config. Call Login before use.

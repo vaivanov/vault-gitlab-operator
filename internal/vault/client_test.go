@@ -144,18 +144,23 @@ func TestSealedVault(t *testing.T) {
 	}
 }
 
-func TestLoginUnimplementedMethods(t *testing.T) {
+func TestLoginMissingCredentials(t *testing.T) {
+	// approle without credential refs and kubernetes without a JWT file
+	// must fail loudly at login time.
 	for _, method := range []string{"approle", "kubernetes"} {
 		cfg := config.VaultConfig{
 			Address: "https://vault.example.com",
-			Auth:    config.VaultAuth{Method: method},
+			Auth: config.VaultAuth{
+				Method:     method,
+				Kubernetes: config.KubernetesAuth{Role: "x", JWTFile: "/nonexistent/jwt"},
+			},
 		}
 		c, err := New(cfg)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if err := c.Login(t.Context()); err == nil {
-			t.Errorf("method %s: expected not-implemented error", method)
+			t.Errorf("method %s: expected credential error", method)
 		}
 	}
 }

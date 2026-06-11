@@ -16,11 +16,12 @@ import (
 )
 
 // buildReconciler wires config, the Vault secret source (with version
-// cache) and the GitLab store into a ready-to-run reconciler.
-func buildReconciler(ctx context.Context, flags *rootFlags, log *slog.Logger) (*sync.Reconciler, *config.Config, error) {
+// cache) and the GitLab store into a ready-to-run reconciler. The Vault
+// client is returned too so daemon mode can keep its token alive.
+func buildReconciler(ctx context.Context, flags *rootFlags, log *slog.Logger) (*sync.Reconciler, *vault.Client, *config.Config, error) {
 	cfg, err := config.Load(flags.configPath)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	for _, w := range cfg.Warnings {
 		log.Warn(w)
@@ -28,15 +29,15 @@ func buildReconciler(ctx context.Context, flags *rootFlags, log *slog.Logger) (*
 
 	vaultClient, err := vault.New(cfg.Vault)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	if err := vaultClient.Login(ctx); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	store, err := gitlab.New(cfg.GitLab)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	return &sync.Reconciler{
@@ -44,7 +45,7 @@ func buildReconciler(ctx context.Context, flags *rootFlags, log *slog.Logger) (*
 		Secrets: vault.NewCached(vaultClient),
 		Store:   store,
 		Log:     log,
-	}, cfg, nil
+	}, vaultClient, cfg, nil
 }
 
 func newOnceCmd(flags *rootFlags) *cobra.Command {
@@ -60,7 +61,7 @@ func newOnceCmd(flags *rootFlags) *cobra.Command {
 			ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
 			defer stop()
 
-			r, _, err := buildReconciler(ctx, flags, log)
+			r, _, _, err := buildReconciler(ctx, flags, log)
 			if err != nil {
 				return &exitError{code: exitConfigError, err: err}
 			}
@@ -89,7 +90,7 @@ func newDiffCmd(flags *rootFlags) *cobra.Command {
 			ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
 			defer stop()
 
-			r, _, err := buildReconciler(ctx, flags, log)
+			r, _, _, err := buildReconciler(ctx, flags, log)
 			if err != nil {
 				return &exitError{code: exitConfigError, err: err}
 			}
