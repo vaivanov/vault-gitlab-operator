@@ -212,6 +212,70 @@ func TestUpdateWithDuplicateKeysAcrossScopes(t *testing.T) {
 	}
 }
 
+func TestListAndUpdateAtAllLevels(t *testing.T) {
+	fake := newFakeGitLab("tok")
+	fake.addProject("a/b", 1)
+	fake.addGroup("g", 2)
+	fake.seed("project:1", fakeVar{Key: "P", Value: "old", VariableType: "env_var", EnvironmentScope: "*"})
+	fake.seed("group:2", fakeVar{Key: "G", Value: "old", VariableType: "env_var", EnvironmentScope: "*"})
+	fake.seed("instance", fakeVar{Key: "I", Value: "old", VariableType: "env_var"})
+	srv := fake.start()
+	defer srv.Close()
+
+	c := newTestClient(t, srv.URL, "tok", 0)
+
+	targets := map[string]config.TargetRef{
+		"project:1": {Kind: config.KindProject, Ref: "a/b", ID: 1},
+		"group:2":   {Kind: config.KindGroup, Ref: "g", ID: 2},
+		"instance":  {Kind: config.KindInstance},
+	}
+	keys := map[string]string{"project:1": "P", "group:2": "G", "instance": "I"}
+
+	for scope, ref := range targets {
+		t.Run(scope, func(t *testing.T) {
+			vars, err := c.List(t.Context(), ref)
+			if err != nil {
+				t.Fatalf("List: %v", err)
+			}
+			if len(vars) != 1 || vars[0].Key != keys[scope] || vars[0].Value != "old" {
+				t.Fatalf("List = %+v", vars)
+			}
+
+			envScope := "*"
+			if ref.Kind == config.KindInstance {
+				envScope = ""
+			}
+			err = c.Update(t.Context(), ref, Variable{
+				Key: keys[scope], Value: "new", Type: "file",
+				Protected: true, Raw: true, EnvironmentScope: envScope,
+				Description: "updated",
+			})
+			if err != nil {
+				t.Fatalf("Update: %v", err)
+			}
+			got := fake.get(scope, keys[scope], envScope)
+			if got == nil || got.Value != "new" || got.VariableType != "file" || !got.Protected || !got.Raw || got.Description != "updated" {
+				t.Errorf("updated variable wrong: %+v", got)
+			}
+		})
+	}
+}
+
+func TestVariableIdentity(t *testing.T) {
+	v := Variable{Key: "K", EnvironmentScope: "prod"}
+	id := v.Identity()
+	if id.Key != "K" || id.EnvironmentScope != "prod" {
+		t.Errorf("Identity() = %+v", id)
+	}
+}
+
+func TestNewRequiresResolvableToken(t *testing.T) {
+	_, err := New(config.GitLabConfig{URL: "https://g", TokenEnv: "VGO_UNSET_TOKEN_VAR"})
+	if err == nil {
+		t.Fatal("expected error for unresolvable token")
+	}
+}
+
 func TestCreateMaskedViolationSurfaces400(t *testing.T) {
 	fake := newFakeGitLab("tok")
 	fake.addProject("a/b", 1)

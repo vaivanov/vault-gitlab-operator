@@ -1,0 +1,94 @@
+# vault-gitlab-operator example configuration.
+# Secrets are NEVER written into this file — only env-var names or file
+# paths that point to them.
+
+vault:
+  address: https://vault.internal:8200          # falls back to $VAULT_ADDR
+  # tls:
+  #   ca_cert_file: /etc/vgo/vault-ca.pem
+  auth:
+    method: approle                             # token | approle | kubernetes
+    # token:                                    # method: token (default: $VAULT_TOKEN)
+    #   env: VAULT_TOKEN
+    approle:
+      mount: approle
+      role_id_env: VGO_VAULT_ROLE_ID
+      secret_id_file: /etc/vgo/vault-secret-id
+    # kubernetes:                               # method: kubernetes
+    #   mount: kubernetes
+    #   role: vault-gitlab-operator
+    #   jwt_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+gitlab:
+  url: https://gitlab.internal
+  token_env: GITLAB_TOKEN                       # or token_file
+  rate_limit: 10                                # requests/sec, 0 = unlimited
+
+sync:
+  interval: 5m                                  # daemon reconcile interval
+  jitter: 30s                                   # random 0..jitter added per tick
+  concurrency: 4                                # targets synced in parallel
+  on_masked_violation: error                    # error | skip-warn
+
+# Merged into every variable spec unless the spec overrides the field.
+defaults:
+  vault_mount: kv                               # default KV v2 mount (built-in default: secret)
+  variable_type: env_var                        # env_var | file
+  protected: false
+  masked: false
+  raw: true                                     # always sent explicitly to GitLab
+  environment_scope: "*"
+  description: "Managed by vault-gitlab-operator — do not edit manually"
+
+# Named variable sets reused across targets.
+bundles:
+  backend-common:
+    - key: SENTRY_DSN
+      vault: { path: ci/common/sentry, field: dsn }
+    - key: NPM_TOKEN
+      vault: { path: ci/common/npm, field: token }
+      masked: true
+  deploy-keys:
+    - key: KUBECONFIG_STAGING
+      vault: { path: ci/deploy/staging, field: kubeconfig }
+      variable_type: file
+      environment_scope: staging
+    - key: KUBECONFIG_PROD
+      vault: { path: ci/deploy/prod, field: kubeconfig }
+      variable_type: file
+      protected: true
+      environment_scope: production
+
+targets:
+  # Instance-level variables (/admin/ci/variables): requires an admin PAT;
+  # environment_scope is not supported here.
+  instance:
+    variables:
+      - key: GLOBAL_REGISTRY_PASSWORD
+        vault: { path: ci/registry, field: password }
+        masked: true
+
+  groups:
+    - group: platform                           # path or numeric ID
+      bundles: [backend-common]
+      variables:
+        - key: GROUP_SIGNING_KEY
+          vault: { path: ci/platform/signing, field: private_key }
+          variable_type: file
+          protected: true
+
+  projects:
+    - project: platform/backend                 # path or numeric ID
+      bundles: [backend-common, deploy-keys]
+      variables:
+        - key: DB_PASSWORD
+          vault: { path: ci/backend/db, field: password }
+          masked: true
+          protected: true
+          environment_scope: production
+        # Whole-secret mode: every field becomes a variable, key derived
+        # from the field name (upper-cased, sanitized, prefixed).
+        - from_secret: { path: ci/backend/dotenv }
+          prefix: APP_
+    - project: platform/frontend
+      bundles: [backend-common]

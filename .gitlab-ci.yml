@@ -1,0 +1,64 @@
+stages:
+  - lint
+  - test
+  - build
+  - docker
+
+variables:
+  GOPATH: $CI_PROJECT_DIR/.go
+  GOLANGCI_LINT_VERSION: v2.6.2
+
+.go-cache:
+  cache:
+    key: $CI_JOB_NAME
+    paths:
+      - .go/pkg/mod/
+
+lint:
+  stage: lint
+  image: golangci/golangci-lint:$GOLANGCI_LINT_VERSION
+  extends: .go-cache
+  script:
+    - golangci-lint run --timeout 5m
+
+test:
+  stage: test
+  image: golang:1.26
+  extends: .go-cache
+  script:
+    - go test -race -coverprofile=coverage.out -covermode=atomic ./...
+    - go tool cover -func=coverage.out | tail -1
+  coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
+  artifacts:
+    paths:
+      - coverage.out
+    expire_in: 1 week
+
+build:
+  stage: build
+  image: golang:1.26
+  extends: .go-cache
+  script:
+    - CGO_ENABLED=0 go build -trimpath
+      -ldflags "-s -w -X main.version=${CI_COMMIT_TAG:-$CI_COMMIT_SHORT_SHA}"
+      -o bin/vault-gitlab-operator ./cmd/vault-gitlab-operator
+  artifacts:
+    paths:
+      - bin/vault-gitlab-operator
+    expire_in: 1 week
+
+docker:
+  stage: docker
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script:
+    - /kaniko/executor
+      --context "$CI_PROJECT_DIR"
+      --dockerfile "$CI_PROJECT_DIR/Dockerfile"
+      --build-arg "VERSION=${CI_COMMIT_TAG:-$CI_COMMIT_SHORT_SHA}"
+      --destination "$CI_REGISTRY_IMAGE:${CI_COMMIT_TAG:-$CI_COMMIT_SHORT_SHA}"
+      --destination "$CI_REGISTRY_IMAGE:latest"
