@@ -50,6 +50,8 @@ func run(args []string) int {
 	root.PersistentFlags().StringVar(&flags.logFormat, "log-format", "text", "log format (text|json)")
 
 	root.AddCommand(newValidateCmd(flags))
+	root.AddCommand(newOnceCmd(flags))
+	root.AddCommand(newDiffCmd(flags))
 
 	root.SetArgs(args)
 	if err := root.Execute(); err != nil {
