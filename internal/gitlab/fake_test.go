@@ -73,12 +73,6 @@ func (f *fakeGitLab) get(scope, key, envScope string) *fakeVar {
 	return nil
 }
 
-func (f *fakeGitLab) count(scope string) int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return len(f.vars[scope])
-}
-
 func (f *fakeGitLab) start() *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(f.handle))
 }
@@ -113,7 +107,7 @@ func (f *fakeGitLab) handle(w http.ResponseWriter, r *http.Request) {
 		}
 		id, ok := f.lookup(table, ref)
 		if !ok {
-			httpError(w, http.StatusNotFound, fmt.Sprintf("404 %s Not Found", strings.Title(kind)))
+			httpError(w, http.StatusNotFound, fmt.Sprintf("404 %s Not Found", kind))
 			return
 		}
 

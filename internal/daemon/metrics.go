@@ -17,6 +17,7 @@ type Metrics struct {
 	duration    prometheus.Histogram
 }
 
+// NewMetrics builds the instrument set on a fresh registry.
 func NewMetrics() *Metrics {
 	m := &Metrics{Registry: prometheus.NewRegistry()}
 	m.runs = prometheus.NewCounterVec(prometheus.CounterOpts{

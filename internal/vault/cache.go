@@ -25,14 +25,18 @@ type cacheEntry struct {
 	data    map[string]string
 }
 
+// NewCached wraps src with the version-keyed cache.
 func NewCached(src SecretSource) *CachedSource {
 	return &CachedSource{src: src, entries: map[string]cacheEntry{}}
 }
 
+// Version delegates to the underlying source (always a live call).
 func (c *CachedSource) Version(ctx context.Context, ref config.VaultRef) (int, time.Time, error) {
 	return c.src.Version(ctx, ref)
 }
 
+// Read returns cached data when the current Vault version matches the
+// cached one, fetching from the source otherwise.
 func (c *CachedSource) Read(ctx context.Context, ref config.VaultRef) (map[string]string, int, error) {
 	version, _, err := c.src.Version(ctx, ref)
 	if err != nil {

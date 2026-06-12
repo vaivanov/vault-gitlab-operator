@@ -29,6 +29,7 @@ type Counts struct {
 	Created, Updated, Unchanged, Skipped, Failed, TargetErrors int
 }
 
+// Counts aggregates action outcomes across all targets of the run.
 func (r *Report) Counts() Counts {
 	var c Counts
 	for _, t := range r.Targets {

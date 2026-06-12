@@ -10,14 +10,19 @@ const redacted = "[REDACTED]"
 // where it is handed to the Vault or GitLab API.
 type Secret string
 
+// LogValue redacts the secret in slog output.
 func (s Secret) LogValue() slog.Value { return slog.StringValue(redacted) }
 
+// String redacts the secret in fmt %s/%v output.
 func (s Secret) String() string { return redacted }
 
+// GoString redacts the secret in fmt %#v output.
 func (s Secret) GoString() string { return redacted }
 
+// MarshalText redacts the secret in text-based encoders.
 func (s Secret) MarshalText() ([]byte, error) { return []byte(redacted), nil }
 
+// MarshalJSON redacts the secret in JSON encoding.
 func (s Secret) MarshalJSON() ([]byte, error) { return []byte(`"` + redacted + `"`), nil }
 
 // Reveal returns the underlying sensitive value.

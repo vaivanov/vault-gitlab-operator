@@ -107,7 +107,7 @@ func (c *Config) applyDefaults() {
 	}
 }
 
-// GitLabToken resolves the GitLab API token from the configured env var or
+// Token resolves the GitLab API token from the configured env var or
 // file reference.
 func (c *GitLabConfig) Token() (logging.Secret, error) {
 	return resolveSecret("gitlab token", c.TokenEnv, c.TokenFile)

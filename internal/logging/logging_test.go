@@ -53,11 +53,12 @@ func TestSecretNeverRenders(t *testing.T) {
 	s := Secret(sensitive)
 
 	renderings := map[string]string{
-		"String()":   s.String(),
-		"fmt %s":     fmt.Sprintf("%s", s),
-		"fmt %v":     fmt.Sprintf("%v", s),
-		"fmt %#v":    fmt.Sprintf("%#v", s),
-		"fmt %q":     fmt.Sprintf("%q", s),
+		"String()": s.String(),
+		//nolint:staticcheck // %s on purpose: this asserts the fmt path redacts
+		"fmt %s":  fmt.Sprintf("%s", s),
+		"fmt %v":  fmt.Sprintf("%v", s),
+		"fmt %#v": fmt.Sprintf("%#v", s),
+		"fmt %q":  fmt.Sprintf("%q", s),
 	}
 	for name, got := range renderings {
 		if strings.Contains(got, sensitive) {
@@ -94,7 +95,7 @@ func TestSecretRedactedInSlog(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		log.Info("logging in", "token", Secret(sensitive), "nested", slog_group(sensitive))
+		log.Info("logging in", "token", Secret(sensitive), "nested", slogGroup(sensitive))
 		if strings.Contains(buf.String(), sensitive) {
 			t.Errorf("format=%s: slog output leaked secret: %q", format, buf.String())
 		}
@@ -104,6 +105,6 @@ func TestSecretRedactedInSlog(t *testing.T) {
 	}
 }
 
-// slog_group returns an any wrapping a Secret to ensure redaction holds
+// slogGroup returns an any wrapping a Secret to ensure redaction holds
 // through interface boxing too.
-func slog_group(v string) any { return Secret(v) }
+func slogGroup(v string) any { return Secret(v) }

@@ -15,8 +15,15 @@ linters:
     gosec:
       excludes:
         - G404 # math/rand is fine for sync jitter
+        - G304 # config/token file paths come from the operator's own config by design
+    errcheck:
+      exclude-functions:
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Fprint
   exclusions:
     rules:
       - path: _test\.go
         linters:
           - gosec
+          - errcheck

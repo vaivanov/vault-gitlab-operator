@@ -10,8 +10,12 @@ import (
 	"github.com/vaivanov/vault-gitlab-operator/internal/gitlab"
 )
 
+// Op is the planned operation for one variable.
 type Op string
 
+// The reconciler plans creates and updates only; OpNoop marks converged
+// variables and OpSkip ones that could not be materialized. There is no
+// delete operation by design.
 const (
 	OpCreate Op = "create"
 	OpUpdate Op = "update"

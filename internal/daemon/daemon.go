@@ -18,6 +18,7 @@ import (
 	syncpkg "github.com/vaivanov/vault-gitlab-operator/internal/sync"
 )
 
+// Daemon owns the periodic reconcile loop and its HTTP endpoints.
 type Daemon struct {
 	Log      *slog.Logger
 	Interval time.Duration

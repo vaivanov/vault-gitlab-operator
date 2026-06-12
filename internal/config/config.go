@@ -35,16 +35,18 @@ type VaultConfig struct {
 	Auth    VaultAuth      `yaml:"auth"`
 }
 
+// VaultTLS holds optional TLS settings for the Vault connection.
 type VaultTLS struct {
 	CACertFile         string `yaml:"ca_cert_file"`
 	InsecureSkipVerify bool   `yaml:"insecure_skip_verify"`
 }
 
+// VaultAuth selects and configures the Vault authentication method.
 type VaultAuth struct {
-	Method     string          `yaml:"method"` // token | approle | kubernetes
-	Token      TokenAuth       `yaml:"token"`
-	AppRole    AppRoleAuth     `yaml:"approle"`
-	Kubernetes KubernetesAuth  `yaml:"kubernetes"`
+	Method     string         `yaml:"method"` // token | approle | kubernetes
+	Token      TokenAuth      `yaml:"token"`
+	AppRole    AppRoleAuth    `yaml:"approle"`
+	Kubernetes KubernetesAuth `yaml:"kubernetes"`
 }
 
 // TokenAuth reads a Vault token from an environment variable or a file.
@@ -53,6 +55,7 @@ type TokenAuth struct {
 	File string `yaml:"file"`
 }
 
+// AppRoleAuth reads AppRole credentials from env vars or files.
 type AppRoleAuth struct {
 	Mount        string `yaml:"mount"`
 	RoleIDEnv    string `yaml:"role_id_env"`
@@ -61,6 +64,8 @@ type AppRoleAuth struct {
 	SecretIDFile string `yaml:"secret_id_file"`
 }
 
+// KubernetesAuth configures Vault Kubernetes auth using a projected
+// service-account JWT.
 type KubernetesAuth struct {
 	Mount   string `yaml:"mount"`
 	Role    string `yaml:"role"`
@@ -85,6 +90,7 @@ type SyncConfig struct {
 	OnMaskedViolation string   `yaml:"on_masked_violation"` // error | skip-warn
 }
 
+// Allowed values for sync.on_masked_violation.
 const (
 	MaskedViolationError    = "error"
 	MaskedViolationSkipWarn = "skip-warn"
@@ -145,17 +151,20 @@ type Targets struct {
 	Projects []ProjectTarget `yaml:"projects"`
 }
 
+// InstanceTarget syncs variables at the GitLab instance level.
 type InstanceTarget struct {
 	Bundles   []string       `yaml:"bundles"`
 	Variables []VariableSpec `yaml:"variables"`
 }
 
+// GroupTarget syncs variables of one GitLab group.
 type GroupTarget struct {
 	Group     string         `yaml:"group"` // path or numeric ID
 	Bundles   []string       `yaml:"bundles"`
 	Variables []VariableSpec `yaml:"variables"`
 }
 
+// ProjectTarget syncs variables of one GitLab project.
 type ProjectTarget struct {
 	Project   string         `yaml:"project"` // path or numeric ID
 	Bundles   []string       `yaml:"bundles"`
@@ -164,8 +173,10 @@ type ProjectTarget struct {
 
 // --- expanded (post-Load) form -------------------------------------------
 
+// TargetKind is the GitLab level a target syncs to.
 type TargetKind string
 
+// The three GitLab levels variables can live at.
 const (
 	KindInstance TargetKind = "instance"
 	KindGroup    TargetKind = "group"
@@ -215,6 +226,7 @@ type Identity struct {
 	EnvironmentScope string
 }
 
+// Identity returns the GitLab-side identity of the variable.
 func (v ResolvedVariable) Identity() Identity {
 	return Identity{Key: v.Key, EnvironmentScope: v.EnvironmentScope}
 }
@@ -222,6 +234,7 @@ func (v ResolvedVariable) Identity() Identity {
 // Duration wraps time.Duration with YAML support for strings like "5m".
 type Duration time.Duration
 
+// UnmarshalYAML parses Go duration strings like "30s" or "5m".
 func (d *Duration) UnmarshalYAML(value *yaml.Node) error {
 	var s string
 	if err := value.Decode(&s); err != nil {
@@ -235,4 +248,5 @@ func (d *Duration) UnmarshalYAML(value *yaml.Node) error {
 	return nil
 }
 
+// Std converts to the standard library duration type.
 func (d Duration) Std() time.Duration { return time.Duration(d) }
