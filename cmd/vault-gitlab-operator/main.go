@@ -10,8 +10,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/scentbird/vault-gitlab-operator/internal/config"
-	"github.com/scentbird/vault-gitlab-operator/internal/logging"
+	"github.com/vaivanov/vault-gitlab-operator/internal/config"
+	"github.com/vaivanov/vault-gitlab-operator/internal/logging"
 )
 
 // version is injected at build time via -ldflags.

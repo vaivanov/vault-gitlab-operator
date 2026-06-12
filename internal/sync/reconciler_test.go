@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/scentbird/vault-gitlab-operator/internal/config"
-	"github.com/scentbird/vault-gitlab-operator/internal/gitlab"
+	"github.com/vaivanov/vault-gitlab-operator/internal/config"
+	"github.com/vaivanov/vault-gitlab-operator/internal/gitlab"
 )
 
 // newReconciler parses a config body (only sync/defaults/targets matter
@@ -245,7 +245,7 @@ func TestMaskedViolationTable(t *testing.T) {
 		{"abc defgh", false},        // space
 		{"abcdef\ngh", false},       // newline
 		{"abcdefgh!", false},        // bad char
-		{"пароль-пароль", false},    // non-ascii
+		{"déjà-vu-sécret", false},   // non-ascii
 		{"AAAAAAAAAAAAAAAA", true},
 	}
 	for _, tt := range tests {

@@ -1,4 +1,4 @@
-module github.com/scentbird/vault-gitlab-operator
+module github.com/vaivanov/vault-gitlab-operator
 
 go 1.26.4
 

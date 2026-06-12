@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/scentbird/vault-gitlab-operator/internal/daemon"
-	syncpkg "github.com/scentbird/vault-gitlab-operator/internal/sync"
+	"github.com/vaivanov/vault-gitlab-operator/internal/daemon"
+	syncpkg "github.com/vaivanov/vault-gitlab-operator/internal/sync"
 )
 
 func newDaemonCmd(flags *rootFlags) *cobra.Command {

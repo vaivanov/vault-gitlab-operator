@@ -7,9 +7,9 @@ import (
 	stdsync "sync"
 	"time"
 
-	"github.com/scentbird/vault-gitlab-operator/internal/config"
-	"github.com/scentbird/vault-gitlab-operator/internal/gitlab"
-	"github.com/scentbird/vault-gitlab-operator/internal/vault"
+	"github.com/vaivanov/vault-gitlab-operator/internal/config"
+	"github.com/vaivanov/vault-gitlab-operator/internal/gitlab"
+	"github.com/vaivanov/vault-gitlab-operator/internal/vault"
 )
 
 // Reconciler runs one desired-state pass: config + Vault -> GitLab.

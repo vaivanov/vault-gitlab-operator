@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/scentbird/vault-gitlab-operator/internal/config"
+	"github.com/vaivanov/vault-gitlab-operator/internal/config"
 )
 
 // CachedSource wraps a SecretSource with a version-keyed in-memory cache:

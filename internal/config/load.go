@@ -9,7 +9,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/scentbird/vault-gitlab-operator/internal/logging"
+	"github.com/vaivanov/vault-gitlab-operator/internal/logging"
 )
 
 // Built-in defaults applied before validation when the config omits them.

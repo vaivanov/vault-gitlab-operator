@@ -9,10 +9,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/scentbird/vault-gitlab-operator/internal/config"
-	"github.com/scentbird/vault-gitlab-operator/internal/gitlab"
-	"github.com/scentbird/vault-gitlab-operator/internal/sync"
-	"github.com/scentbird/vault-gitlab-operator/internal/vault"
+	"github.com/vaivanov/vault-gitlab-operator/internal/config"
+	"github.com/vaivanov/vault-gitlab-operator/internal/gitlab"
+	"github.com/vaivanov/vault-gitlab-operator/internal/sync"
+	"github.com/vaivanov/vault-gitlab-operator/internal/vault"
 )
 
 // buildReconciler wires config, the Vault secret source (with version

@@ -5,7 +5,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/scentbird/vault-gitlab-operator/internal/config"
+	"github.com/vaivanov/vault-gitlab-operator/internal/config"
 )
 
 // TargetResult holds the outcome for one sync target.

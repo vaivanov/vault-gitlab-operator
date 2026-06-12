@@ -3,7 +3,7 @@ package daemon
 import (
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/scentbird/vault-gitlab-operator/internal/sync"
+	"github.com/vaivanov/vault-gitlab-operator/internal/sync"
 )
 
 // Metrics holds the operator's Prometheus instruments on a private

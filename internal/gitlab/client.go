@@ -11,7 +11,7 @@ import (
 	glapi "gitlab.com/gitlab-org/api/client-go"
 	"golang.org/x/time/rate"
 
-	"github.com/scentbird/vault-gitlab-operator/internal/config"
+	"github.com/vaivanov/vault-gitlab-operator/internal/config"
 )
 
 // Variable is the level-independent shape of a GitLab CI/CD variable.

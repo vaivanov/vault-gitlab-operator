@@ -15,7 +15,7 @@ import (
 	"syscall"
 	"time"
 
-	syncpkg "github.com/scentbird/vault-gitlab-operator/internal/sync"
+	syncpkg "github.com/vaivanov/vault-gitlab-operator/internal/sync"
 )
 
 type Daemon struct {

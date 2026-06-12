@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/scentbird/vault-gitlab-operator/internal/config"
-	"github.com/scentbird/vault-gitlab-operator/internal/gitlab"
+	"github.com/vaivanov/vault-gitlab-operator/internal/config"
+	"github.com/vaivanov/vault-gitlab-operator/internal/gitlab"
 )
 
 // instanceValueLimit is the GitLab cap on instance-level variable values.

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/scentbird/vault-gitlab-operator/internal/config"
+	"github.com/vaivanov/vault-gitlab-operator/internal/config"
 )
 
 func newTestClient(t *testing.T, addr, token string) *Client {

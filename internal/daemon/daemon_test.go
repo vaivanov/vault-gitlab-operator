@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/scentbird/vault-gitlab-operator/internal/config"
-	syncpkg "github.com/scentbird/vault-gitlab-operator/internal/sync"
+	"github.com/vaivanov/vault-gitlab-operator/internal/config"
+	syncpkg "github.com/vaivanov/vault-gitlab-operator/internal/sync"
 )
 
 func testLogger() *slog.Logger {

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/scentbird/vault-gitlab-operator/internal/config"
+	"github.com/vaivanov/vault-gitlab-operator/internal/config"
 )
 
 func TestLoginAppRole(t *testing.T) {

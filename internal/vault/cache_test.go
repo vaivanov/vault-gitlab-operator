@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/scentbird/vault-gitlab-operator/internal/config"
+	"github.com/vaivanov/vault-gitlab-operator/internal/config"
 )
 
 func TestCachedReadSkipsDataWhenVersionUnchanged(t *testing.T) {

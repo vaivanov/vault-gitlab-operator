@@ -13,7 +13,7 @@ import (
 
 	"github.com/hashicorp/vault/api"
 
-	"github.com/scentbird/vault-gitlab-operator/internal/config"
+	"github.com/vaivanov/vault-gitlab-operator/internal/config"
 )
 
 // ErrNotFound is returned when a secret (or its metadata) does not exist.
