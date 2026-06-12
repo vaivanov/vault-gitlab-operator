@@ -1,0 +1,12 @@
+vault-gitlab-operator deployed as {{ include "vault-gitlab-operator.fullname" . }} in {{ .Release.Namespace }}.
+
+Next steps:
+1. Make sure .Values.config has your real Vault address, GitLab URL and
+   at least one target — the operator refuses to start otherwise.
+2. The GitLab token comes from Secret
+   "{{ include "vault-gitlab-operator.tokenSecretName" . }}", key
+   "{{ .Values.gitlabToken.key }}".
+3. Watch the first reconcile:
+   kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "vault-gitlab-operator.fullname" . }} -f
+4. Health: /healthz and /readyz on port {{ .Values.listenPort }};
+   Prometheus metrics on /metrics.

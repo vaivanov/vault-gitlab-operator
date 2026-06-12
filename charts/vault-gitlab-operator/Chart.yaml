@@ -1,0 +1,14 @@
+apiVersion: v2
+name: vault-gitlab-operator
+description: Sync secrets from HashiCorp Vault (KV v2) into GitLab CI/CD variables
+type: application
+version: 0.1.0
+appVersion: "latest"
+home: https://github.com/vaivanov/vault-gitlab-operator
+sources:
+  - https://github.com/vaivanov/vault-gitlab-operator
+keywords:
+  - vault
+  - gitlab
+  - secrets
+  - ci

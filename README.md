@@ -128,9 +128,18 @@ for every referenced secret.
 
 ## Deployment
 
-- **Kubernetes**: [examples/k8s/deployment.yaml](examples/k8s/deployment.yaml)
+- **Kubernetes (Helm)**: [charts/vault-gitlab-operator](charts/vault-gitlab-operator)
   — single replica (`Recreate`), Vault Kubernetes auth via the projected
-  SA token, liveness/readiness probes, Prometheus annotations.
+  SA token, probes, optional ServiceMonitor:
+
+  ```sh
+  helm install vgo ./charts/vault-gitlab-operator \
+    -n vault-gitlab-operator --create-namespace \
+    --set gitlabToken.existingSecret=gitlab-token \
+    -f my-values.yaml          # your config: vault/gitlab/targets
+  ```
+
+  Images are published to `ghcr.io/vaivanov/vault-gitlab-operator`.
 - **Cron**: run `once` on a schedule if a daemon is unwanted.
 - **Local playground**: [examples/docker-compose.yaml](examples/docker-compose.yaml)
   with a dev-mode Vault.
