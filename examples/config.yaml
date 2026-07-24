@@ -27,6 +27,7 @@ gitlab:
 sync:
   interval: 5m                                  # daemon reconcile interval
   jitter: 30s                                   # random 0..jitter added per tick
+  timeout: 10m                                  # max duration of one pass; 0s = no limit
   concurrency: 4                                # targets synced in parallel
   on_masked_violation: error                    # error | skip-warn
 

@@ -30,9 +30,9 @@ type Config struct {
 
 // VaultConfig configures the connection and authentication to Vault.
 type VaultConfig struct {
-	Address string         `yaml:"address"`
-	TLS     VaultTLS       `yaml:"tls"`
-	Auth    VaultAuth      `yaml:"auth"`
+	Address string    `yaml:"address"`
+	TLS     VaultTLS  `yaml:"tls"`
+	Auth    VaultAuth `yaml:"auth"`
 }
 
 // VaultTLS holds optional TLS settings for the Vault connection.
@@ -88,6 +88,20 @@ type SyncConfig struct {
 	Jitter            Duration `yaml:"jitter"`
 	Concurrency       int      `yaml:"concurrency"`
 	OnMaskedViolation string   `yaml:"on_masked_violation"` // error | skip-warn
+
+	// Timeout bounds one reconcile pass; without it an unresponsive
+	// Vault or GitLab stalls the loop forever. A pointer so that an
+	// explicit "0s" (no limit) stays distinguishable from an omitted key.
+	Timeout *Duration `yaml:"timeout"`
+}
+
+// PassTimeout is the maximum duration of one reconcile pass; 0 means no
+// limit.
+func (s SyncConfig) PassTimeout() time.Duration {
+	if s.Timeout == nil {
+		return defaultPassTimeout
+	}
+	return s.Timeout.Std()
 }
 
 // Allowed values for sync.on_masked_violation.

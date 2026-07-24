@@ -3,6 +3,7 @@ package config
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 // base returns a minimal valid config body; tests mutate pieces of it.
@@ -128,6 +129,37 @@ vault: {address: https://v:8200}
 gitlab: {url: https://g, token_env: T}
 targets: {}`,
 			wantErr: "at least one of instance, groups or projects",
+		},
+		{
+			name: "negative pass timeout",
+			yaml: `
+vault: {address: https://v:8200}
+gitlab: {url: https://g, token_env: T}
+sync: {timeout: -1s}
+targets: {projects: [{project: a/b, variables: [{key: K, vault: {path: p, field: f}}]}]}`,
+			wantErr: "sync.timeout must be >= 0",
+		},
+		{
+			name: "duplicate project target",
+			yaml: `
+vault: {address: https://v:8200}
+gitlab: {url: https://g, token_env: T}
+targets:
+  projects:
+    - {project: a/b, variables: [{key: K, vault: {path: p, field: f}}]}
+    - {project: a/b, variables: [{key: J, vault: {path: q, field: f}}]}`,
+			wantErr: `project "a/b" is already declared at targets.projects[0]`,
+		},
+		{
+			name: "duplicate group target",
+			yaml: `
+vault: {address: https://v:8200}
+gitlab: {url: https://g, token_env: T}
+targets:
+  groups:
+    - {group: platform, variables: [{key: K, vault: {path: p, field: f}}]}
+    - {group: platform, variables: [{key: J, vault: {path: q, field: f}}]}`,
+			wantErr: `group "platform" is already declared at targets.groups[0]`,
 		},
 		{
 			name: "invalid key characters",
@@ -299,5 +331,66 @@ targets:
 func TestValidBaseParses(t *testing.T) {
 	if _, err := Parse([]byte(validBase)); err != nil {
 		t.Fatalf("base config should be valid: %v", err)
+	}
+}
+
+func TestSameNameAcrossLevelsIsNotADuplicate(t *testing.T) {
+	// A group and a project may legitimately share a path segment; only
+	// duplicates within one level denote the same GitLab object.
+	cfg, err := Parse([]byte(`
+vault: {address: https://v:8200}
+gitlab: {url: https://g, token_env: T}
+targets:
+  groups:
+    - {group: platform, variables: [{key: K, vault: {path: p, field: f}}]}
+  projects:
+    - {project: platform, variables: [{key: K, vault: {path: p, field: f}}]}
+`))
+	if err != nil {
+		t.Fatalf("same name at different levels rejected: %v", err)
+	}
+	if len(cfg.Expanded) != 2 {
+		t.Errorf("expanded = %d targets, want 2", len(cfg.Expanded))
+	}
+}
+
+func TestPassTimeoutDefaultAndExplicitZero(t *testing.T) {
+	tests := []struct {
+		name string
+		sync string
+		want time.Duration
+	}{
+		{"omitted uses the default", "", defaultPassTimeout},
+		{"explicit value wins", "sync: {timeout: 90s}", 90 * time.Second},
+		{"explicit zero disables the limit", "sync: {timeout: 0s}", 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := Parse([]byte(`
+vault: {address: https://v:8200}
+gitlab: {url: https://g, token_env: T}
+` + tt.sync + `
+targets: {projects: [{project: a/b, variables: [{key: K, vault: {path: p, field: f}}]}]}`))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := cfg.Sync.PassTimeout(); got != tt.want {
+				t.Errorf("PassTimeout() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPassTimeoutShorterThanIntervalWarns(t *testing.T) {
+	cfg, err := Parse([]byte(`
+vault: {address: https://v:8200}
+gitlab: {url: https://g, token_env: T}
+sync: {interval: 10m, timeout: 1m}
+targets: {projects: [{project: a/b, variables: [{key: K, vault: {path: p, field: f}}]}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Warnings) != 1 || !strings.Contains(cfg.Warnings[0], "sync.timeout") {
+		t.Errorf("warnings = %v, want one about sync.timeout", cfg.Warnings)
 	}
 }

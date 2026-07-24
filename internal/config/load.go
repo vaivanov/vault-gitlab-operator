@@ -19,6 +19,7 @@ const (
 	defaultEnvironmentScope = "*"
 	defaultDescription      = "Managed by vault-gitlab-operator"
 	defaultInterval         = 5 * time.Minute
+	defaultPassTimeout      = 10 * time.Minute
 	defaultConcurrency      = 4
 	defaultAppRoleMount     = "approle"
 	defaultKubernetesMount  = "kubernetes"
@@ -82,6 +83,10 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Sync.Concurrency == 0 {
 		c.Sync.Concurrency = defaultConcurrency
+	}
+	if c.Sync.Timeout == nil {
+		t := Duration(defaultPassTimeout)
+		c.Sync.Timeout = &t
 	}
 	if c.Sync.OnMaskedViolation == "" {
 		c.Sync.OnMaskedViolation = MaskedViolationError

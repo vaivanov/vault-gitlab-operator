@@ -60,6 +60,8 @@ type fakeStore struct {
 	listErr    map[string]error
 	createErr  map[string]error // variable key -> error
 	updateErr  map[string]error
+	ids        map[string]int64 // TargetRef.String() -> resolved numeric ID
+	nextID     int64
 
 	creates, updates, resolves int
 }
@@ -71,7 +73,16 @@ func newFakeStore() *fakeStore {
 		listErr:    map[string]error{},
 		createErr:  map[string]error{},
 		updateErr:  map[string]error{},
+		ids:        map[string]int64{},
 	}
+}
+
+// alias pins the numeric ID a target ref resolves to, so a test can make
+// two refs (a path and an ID, say) denote the same GitLab object.
+func (f *fakeStore) alias(target string, id int64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.ids[target] = id
 }
 
 func (f *fakeStore) seed(target string, v gitlab.Variable) {
@@ -99,9 +110,18 @@ func (f *fakeStore) ResolveTarget(_ context.Context, t *config.TargetRef) error 
 	if err := f.resolveErr[t.String()]; err != nil {
 		return err
 	}
-	if t.Kind != config.KindInstance {
-		t.ID = 1
+	if t.Kind == config.KindInstance {
+		return nil
 	}
+	// Distinct, stable IDs per ref, as real GitLab hands out — unless the
+	// test aliased two refs onto one ID.
+	id, ok := f.ids[t.String()]
+	if !ok {
+		f.nextID++
+		id = f.nextID
+		f.ids[t.String()] = id
+	}
+	t.ID = id
 	return nil
 }
 

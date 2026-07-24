@@ -6,6 +6,7 @@ package daemon
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"math/rand"
 	"net/http"
@@ -33,12 +34,31 @@ type Daemon struct {
 	Metrics *Metrics
 	// ListenAddr serves /healthz, /readyz and /metrics when non-empty.
 	ListenAddr string
+	// StaleAfter fails /healthz when no reconcile pass has completed
+	// within this duration, so a loop wedged inside a call that ignores
+	// its context gets restarted instead of sitting green forever. 0
+	// disables the check.
+	StaleAfter time.Duration
 
 	ready atomic.Bool
+	// lastProgress is the last time the loop demonstrably made progress:
+	// daemon start, or the end of a reconcile pass (unix nanoseconds).
+	lastProgress atomic.Int64
 }
 
 // Ready reports whether at least one reconcile pass has completed.
 func (d *Daemon) Ready() bool { return d.ready.Load() }
+
+// Healthy reports whether the reconcile loop is still making progress.
+func (d *Daemon) Healthy() bool {
+	last := d.lastProgress.Load()
+	if d.StaleAfter <= 0 || last == 0 {
+		return true
+	}
+	return time.Since(time.Unix(0, last)) <= d.StaleAfter
+}
+
+func (d *Daemon) markProgress() { d.lastProgress.Store(time.Now().UnixNano()) }
 
 // Start blocks until ctx is cancelled.
 func (d *Daemon) Start(ctx context.Context) error {
@@ -47,6 +67,8 @@ func (d *Daemon) Start(ctx context.Context) error {
 			Addr:              d.ListenAddr,
 			Handler:           d.httpHandler(),
 			ReadHeaderTimeout: 5 * time.Second,
+			WriteTimeout:      30 * time.Second,
+			IdleTimeout:       60 * time.Second,
 		}
 		go func() {
 			d.Log.Info("http server listening", "addr", d.ListenAddr)
@@ -71,9 +93,13 @@ func (d *Daemon) Start(ctx context.Context) error {
 			d.Metrics.Observe(report)
 		}
 		d.ready.Store(true)
+		d.markProgress()
 	}
 
-	d.Log.Info("daemon started", "interval", d.Interval, "jitter", d.Jitter)
+	// Baseline the staleness clock before the first pass, so a first pass
+	// that never returns also trips /healthz.
+	d.markProgress()
+	d.Log.Info("daemon started", "interval", d.Interval, "jitter", d.Jitter, "stale_after", d.StaleAfter)
 	run()
 
 	for {
@@ -109,6 +135,11 @@ func (d *Daemon) nextDelay() time.Duration {
 func (d *Daemon) httpHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+		if !d.Healthy() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = fmt.Fprintf(w, "no reconcile pass completed in the last %s\n", d.StaleAfter)
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok\n"))
 	})

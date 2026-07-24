@@ -7,12 +7,20 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	glapi "gitlab.com/gitlab-org/api/client-go"
 	"golang.org/x/time/rate"
 
 	"github.com/vaivanov/vault-gitlab-operator/internal/config"
 )
+
+// requestTimeout bounds a single GitLab API request. client-go ships no
+// timeout at all, so an instance that accepts the connection and then
+// goes quiet would hang a reconcile pass until the process is killed.
+// Retries are bounded on top of this by the pass context, which the
+// library checks before every retry. A variable so tests can shorten it.
+var requestTimeout = 30 * time.Second
 
 // Variable is the level-independent shape of a GitLab CI/CD variable.
 // Instance-level variables have no EnvironmentScope; it is "" there and
@@ -74,6 +82,9 @@ func New(cfg config.GitLabConfig) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create gitlab client: %w", err)
 	}
+	// Set after construction so the library keeps its own pooled
+	// transport and interceptor chain; only the deadline is ours.
+	api.HTTPClient().Timeout = requestTimeout
 	return &Client{api: api, resolved: map[string]int64{}}, nil
 }
 

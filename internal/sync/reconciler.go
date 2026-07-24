@@ -20,6 +20,11 @@ type Reconciler struct {
 	Log     *slog.Logger
 }
 
+// passResetter is implemented by secret sources that memoize Vault
+// version lookups for the duration of one pass (*vault.CachedSource).
+// Run resets them so every pass re-checks each secret exactly once.
+type passResetter interface{ BeginPass() }
+
 // Run reconciles every expanded target. Targets run concurrently (capped
 // by sync.concurrency); variables within one target apply sequentially to
 // avoid racing GitLab on duplicate-key scopes. Failures are isolated: one
@@ -27,6 +32,11 @@ type Reconciler struct {
 func (r *Reconciler) Run(ctx context.Context, dryRun bool) *Report {
 	start := time.Now()
 	results := make([]TargetResult, len(r.Config.Expanded))
+
+	if p, ok := r.Secrets.(passResetter); ok {
+		p.BeginPass()
+	}
+	claimed := newClaimSet()
 
 	sem := make(chan struct{}, r.Config.Sync.Concurrency)
 	var wg stdsync.WaitGroup
@@ -36,7 +46,7 @@ func (r *Reconciler) Run(ctx context.Context, dryRun bool) *Report {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			results[i] = r.syncTarget(ctx, t, dryRun)
+			results[i] = r.syncTarget(ctx, t, dryRun, claimed)
 		}(i, t)
 	}
 	wg.Wait()
@@ -56,7 +66,7 @@ func (r *Reconciler) Run(ctx context.Context, dryRun bool) *Report {
 	return report
 }
 
-func (r *Reconciler) syncTarget(ctx context.Context, t config.Target, dryRun bool) TargetResult {
+func (r *Reconciler) syncTarget(ctx context.Context, t config.Target, dryRun bool, claimed *claimSet) TargetResult {
 	log := r.Log.With("target", t.Ref.String())
 	res := TargetResult{Target: t.Ref}
 
@@ -66,6 +76,16 @@ func (r *Reconciler) syncTarget(ctx context.Context, t config.Target, dryRun boo
 		return res
 	}
 	res.Target = t.Ref
+
+	// Config validation rejects textually identical targets, but a group
+	// or project can also be named by path in one entry and by numeric ID
+	// in another. Both would write the same variables concurrently, so the
+	// second one to resolve is refused rather than left to race.
+	if other, dup := claimed.claim(t.Ref); dup {
+		res.Err = fmt.Errorf("resolves to the same GitLab object as target %s; declare it once", other)
+		log.Error("duplicate target", "error", res.Err)
+		return res
+	}
 
 	desired, skips := r.buildDesired(ctx, t)
 
@@ -108,6 +128,28 @@ func (r *Reconciler) syncTarget(ctx context.Context, t config.Target, dryRun boo
 
 	res.Actions = append(actions, skips...)
 	return res
+}
+
+// claimSet records which concrete GitLab objects a pass has already
+// started reconciling, keyed by kind and resolved numeric ID.
+type claimSet struct {
+	mu stdsync.Mutex
+	by map[string]string // "kind:id" -> the target that claimed it
+}
+
+func newClaimSet() *claimSet { return &claimSet{by: map[string]string{}} }
+
+// claim registers ref and reports the target that got there first when
+// the object is already claimed.
+func (c *claimSet) claim(ref config.TargetRef) (string, bool) {
+	key := fmt.Sprintf("%s:%d", ref.Kind, ref.ID)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if first, dup := c.by[key]; dup {
+		return first, true
+	}
+	c.by[key] = ref.String()
+	return "", false
 }
 
 func (r *Reconciler) apply(ctx context.Context, a Action) error {

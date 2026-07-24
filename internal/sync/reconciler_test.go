@@ -241,11 +241,11 @@ func TestMaskedViolationTable(t *testing.T) {
 	}{
 		{"abcdefgh", true},
 		{"abc-def_gh+/=@:.~", true},
-		{"abcdefg", false},          // too short
-		{"abc defgh", false},        // space
-		{"abcdef\ngh", false},       // newline
-		{"abcdefgh!", false},        // bad char
-		{"déjà-vu-sécret", false},   // non-ascii
+		{"abcdefg", false},        // too short
+		{"abc defgh", false},      // space
+		{"abcdef\ngh", false},     // newline
+		{"abcdefgh!", false},      // bad char
+		{"déjà-vu-sécret", false}, // non-ascii
 		{"AAAAAAAAAAAAAAAA", true},
 	}
 	for _, tt := range tests {
@@ -564,5 +564,86 @@ targets:
 		if strings.Contains(out, "super-secret-value-42") {
 			t.Errorf("%s output leaked the secret value: %q", name, out)
 		}
+	}
+}
+
+func TestAliasedTargetsAreRefusedNotRaced(t *testing.T) {
+	// "platform/backend" and its numeric ID are the same GitLab project.
+	// Config validation cannot see that, so the reconciler must: exactly
+	// one of the two targets reconciles, the other reports an error
+	// instead of racing it.
+	secrets := newFakeSecrets()
+	secrets.put("secret/ci/app", map[string]string{"f": "value-one"})
+	store := newFakeStore()
+	store.alias("project:platform/backend", 42)
+	store.alias("project:42", 42)
+
+	r := newReconciler(t, header+`
+sync: {concurrency: 4}
+targets:
+  projects:
+    - project: platform/backend
+      variables:
+        - {key: K, vault: {path: ci/app, field: f}}
+    - project: "42"
+      variables:
+        - {key: K, vault: {path: ci/app, field: f}}
+`, secrets, store)
+
+	report := r.Run(t.Context(), false)
+
+	c := report.Counts()
+	if c.TargetErrors != 1 {
+		t.Errorf("target errors = %d, want exactly 1 (the duplicate)", c.TargetErrors)
+	}
+	if c.Created != 1 {
+		t.Errorf("created = %d, want exactly 1 (one target must be refused)", c.Created)
+	}
+	if got := store.writes(); got != 1 {
+		t.Errorf("writes = %d, want 1: both targets wrote to the same object", got)
+	}
+
+	var refused int
+	for _, tr := range report.Targets {
+		if tr.Err != nil {
+			refused++
+			if !strings.Contains(tr.Err.Error(), "same GitLab object") {
+				t.Errorf("refusal error = %v, want it to explain the duplicate", tr.Err)
+			}
+		}
+	}
+	if refused != 1 {
+		t.Errorf("%d targets refused, want 1", refused)
+	}
+}
+
+func TestDistinctTargetsBothReconcile(t *testing.T) {
+	// The duplicate guard must not fire for genuinely different objects.
+	secrets := newFakeSecrets()
+	secrets.put("secret/ci/app", map[string]string{"f": "value-one"})
+	store := newFakeStore()
+
+	r := newReconciler(t, header+`
+targets:
+  instance:
+    variables:
+      - {key: K, vault: {path: ci/app, field: f}}
+  groups:
+    - group: g1
+      variables:
+        - {key: K, vault: {path: ci/app, field: f}}
+  projects:
+    - project: a/b
+      variables:
+        - {key: K, vault: {path: ci/app, field: f}}
+    - project: c/d
+      variables:
+        - {key: K, vault: {path: ci/app, field: f}}
+`, secrets, store)
+
+	report := r.Run(t.Context(), false)
+	c := report.Counts()
+	if c.TargetErrors != 0 || c.Created != 4 {
+		t.Errorf("counts = %+v, want 4 created and no target errors", c)
 	}
 }

@@ -48,6 +48,17 @@ func buildReconciler(ctx context.Context, flags *rootFlags, log *slog.Logger) (*
 	}, vaultClient, cfg, nil
 }
 
+// runPass executes one reconcile pass bounded by sync.timeout, so an
+// unresponsive Vault or GitLab cannot hang the process indefinitely.
+func runPass(ctx context.Context, r *sync.Reconciler, dryRun bool) *sync.Report {
+	if timeout := r.Config.Sync.PassTimeout(); timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+	return r.Run(ctx, dryRun)
+}
+
 func newOnceCmd(flags *rootFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "once",
@@ -66,7 +77,7 @@ func newOnceCmd(flags *rootFlags) *cobra.Command {
 				return &exitError{code: exitConfigError, err: err}
 			}
 
-			report := r.Run(ctx, false)
+			report := runPass(ctx, r, false)
 			report.Render(cmd.OutOrStdout(), false)
 			if report.HasErrors() {
 				return &exitError{code: exitSyncErrors, err: fmt.Errorf("sync finished with errors")}
@@ -95,7 +106,7 @@ func newDiffCmd(flags *rootFlags) *cobra.Command {
 				return &exitError{code: exitConfigError, err: err}
 			}
 
-			report := r.Run(ctx, true)
+			report := runPass(ctx, r, true)
 			report.Render(cmd.OutOrStdout(), true)
 			if report.HasErrors() {
 				return &exitError{code: exitSyncErrors, err: fmt.Errorf("diff finished with errors")}
