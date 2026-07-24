@@ -21,6 +21,12 @@ Vault (KV v2)  --poll metadata-->  vault-gitlab-operator  --REST API-->  GitLab 
   (`current_version`) and only fetches secret data when the version
   changed (Vault event notifications are Enterprise-only; polling is the
   Community-edition pattern, same as vault-secrets-operator's default).
+  Each distinct secret costs **one metadata read per pass** no matter how
+  many variables or targets reference it.
+- Every pass is bounded by `sync.timeout` (default 10m), every GitLab
+  request by 30s and every Vault request by 10s, so an unresponsive
+  dependency cannot wedge the loop. In daemon mode `/healthz` also turns
+  red once no pass has completed for two intervals plus a timeout.
 - All GitLab variable attributes are supported: `variable_type`
   (`env_var`/`file`), `protected`, `masked`, `raw`, `environment_scope`,
   `description`.
@@ -102,6 +108,11 @@ Semantics worth knowing:
   field names are upper-cased and sanitized (`db-url` → `DB_URL`),
   prefixed. Explicit keys always win over derived ones; collisions are
   reported as errors.
+- **One entry per GitLab object**: listing the same group or project
+  twice is a config error — two targets for one object would reconcile
+  concurrently and race each other's writes. Aliases that config
+  validation cannot see (a path in one entry, its numeric ID in another)
+  are caught after resolution and the second one is refused.
 - **No pruning**: variables removed from the config simply stop being
   managed; delete them by hand if needed.
 - **`raw` defaults to `true`** and is always sent explicitly (the GitLab

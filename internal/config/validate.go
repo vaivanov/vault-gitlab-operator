@@ -73,6 +73,12 @@ func (c *Config) validate() error {
 	if c.Sync.Concurrency < 1 {
 		fail("sync.concurrency must be >= 1, got %d", c.Sync.Concurrency)
 	}
+	if c.Sync.PassTimeout() < 0 {
+		fail("sync.timeout must be >= 0 (0 disables the pass timeout)")
+	} else if t := c.Sync.PassTimeout(); t > 0 && t < c.Sync.Interval.Std() {
+		warn("sync.timeout (%s) is shorter than sync.interval (%s): passes will be cut short",
+			t, c.Sync.Interval.Std())
+	}
 	if v := c.Sync.OnMaskedViolation; v != MaskedViolationError && v != MaskedViolationSkipWarn {
 		fail("sync.on_masked_violation must be %q or %q, got %q", MaskedViolationError, MaskedViolationSkipWarn, v)
 	}
@@ -100,19 +106,35 @@ func (c *Config) validate() error {
 		errs = append(errs, c.validateTargetSpecs("targets.instance", KindInstance,
 			c.Targets.Instance.Bundles, c.Targets.Instance.Variables, warn)...)
 	}
+	// Each GitLab object may be declared at most once: two targets for the
+	// same group/project are reconciled concurrently and would race each
+	// other's create/update calls. Only exact duplicates are catchable
+	// here — path-vs-numeric-ID aliases are caught after resolution.
+	seenGroups := map[string]int{}
 	for i, g := range c.Targets.Groups {
 		hasTarget = true
 		where := fmt.Sprintf("targets.groups[%d]", i)
-		if g.Group == "" {
+		switch first, dup := seenGroups[g.Group]; {
+		case g.Group == "":
 			fail("%s: group is required (path or numeric ID)", where)
+		case dup:
+			fail("%s: group %q is already declared at targets.groups[%d]; merge the two entries into one", where, g.Group, first)
+		default:
+			seenGroups[g.Group] = i
 		}
 		errs = append(errs, c.validateTargetSpecs(where, KindGroup, g.Bundles, g.Variables, warn)...)
 	}
+	seenProjects := map[string]int{}
 	for i, p := range c.Targets.Projects {
 		hasTarget = true
 		where := fmt.Sprintf("targets.projects[%d]", i)
-		if p.Project == "" {
+		switch first, dup := seenProjects[p.Project]; {
+		case p.Project == "":
 			fail("%s: project is required (path or numeric ID)", where)
+		case dup:
+			fail("%s: project %q is already declared at targets.projects[%d]; merge the two entries into one", where, p.Project, first)
+		default:
+			seenProjects[p.Project] = i
 		}
 		errs = append(errs, c.validateTargetSpecs(where, KindProject, p.Bundles, p.Variables, warn)...)
 	}

@@ -1,9 +1,13 @@
 package gitlab
 
 import (
+	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/vaivanov/vault-gitlab-operator/internal/config"
 )
@@ -371,5 +375,36 @@ func TestRateLimitedClientStillWorks(t *testing.T) {
 	vars, err := c.List(t.Context(), config.TargetRef{Kind: config.KindProject, Ref: "a/b", ID: 1})
 	if err != nil || len(vars) != 1 {
 		t.Fatalf("List with limiter: %v, %d vars", err, len(vars))
+	}
+}
+
+func TestRequestTimeoutBoundsAHangingServer(t *testing.T) {
+	// client-go ships no HTTP timeout; without ours this call would hang
+	// until the process is killed rather than returning an error.
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done() // accept the request, never answer it
+	}))
+	defer srv.Close()
+
+	prev := requestTimeout
+	requestTimeout = 100 * time.Millisecond
+	t.Cleanup(func() { requestTimeout = prev })
+
+	c := newTestClient(t, srv.URL, "tok", 0)
+
+	done := make(chan error, 1)
+	go func() {
+		// context.Background so only the client's own timeout can end it.
+		_, err := c.List(context.Background(), config.TargetRef{Kind: config.KindInstance})
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("List against a silent server returned no error")
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("List against a silent server never returned: no request timeout in effect")
 	}
 }

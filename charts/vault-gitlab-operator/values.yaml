@@ -36,6 +36,9 @@ config:
   sync:
     interval: 5m
     jitter: 30s
+    # Bounds one reconcile pass. The liveness probe is derived from it:
+    # /healthz fails after 2*(interval+jitter) + timeout without a pass.
+    timeout: 10m
   defaults:
     vault_mount: kv
   # Replace with your real targets — the operator refuses to start

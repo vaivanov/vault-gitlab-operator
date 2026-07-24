@@ -240,3 +240,71 @@ func TestMetricsErrorRun(t *testing.T) {
 		t.Errorf("metrics not recorded correctly: %+v", found)
 	}
 }
+
+func TestHealthzFailsWhenLoopIsStale(t *testing.T) {
+	d, _ := counterDaemon(time.Hour)
+	d.StaleAfter = time.Minute
+	handler := d.httpHandler()
+
+	code := func() int {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+		return rec.Code
+	}
+
+	// No progress recorded yet (daemon not started): nothing to judge.
+	if got := code(); got != http.StatusOK {
+		t.Errorf("/healthz before start = %d, want 200", got)
+	}
+
+	d.markProgress()
+	if got := code(); got != http.StatusOK {
+		t.Errorf("/healthz after a fresh pass = %d, want 200", got)
+	}
+
+	d.lastProgress.Store(time.Now().Add(-2 * time.Minute).UnixNano())
+	if got := code(); got != http.StatusServiceUnavailable {
+		t.Errorf("/healthz with a wedged loop = %d, want 503", got)
+	}
+}
+
+func TestHealthzStalenessDisabledByDefault(t *testing.T) {
+	d, _ := counterDaemon(time.Hour) // StaleAfter unset
+	d.lastProgress.Store(time.Now().Add(-24 * time.Hour).UnixNano())
+
+	rec := httptest.NewRecorder()
+	d.httpHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	if rec.Code != http.StatusOK {
+		t.Errorf("/healthz with StaleAfter=0 = %d, want 200 (check disabled)", rec.Code)
+	}
+}
+
+func TestStartBaselinesTheStalenessClock(t *testing.T) {
+	// A first pass that never returns must still trip /healthz.
+	block := make(chan struct{})
+	d := &Daemon{
+		Log:        testLogger(),
+		Interval:   time.Hour,
+		StaleAfter: 50 * time.Millisecond,
+		RunOnce: func(context.Context) *syncpkg.Report {
+			<-block
+			return &syncpkg.Report{}
+		},
+		Reload: func(context.Context) error { return nil },
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	go func() { _ = d.Start(ctx) }()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if !d.Healthy() {
+			close(block)
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	close(block)
+	t.Fatal("daemon stayed healthy while its first pass hung")
+}

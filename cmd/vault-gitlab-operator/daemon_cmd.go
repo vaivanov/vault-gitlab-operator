@@ -61,11 +61,15 @@ func newDaemonCmd(flags *rootFlags) *cobra.Command {
 				Jitter:     jitter,
 				Metrics:    daemon.NewMetrics(),
 				ListenAddr: listen,
+				// A pass is bounded by sync.timeout and one starts every
+				// interval+jitter, so two full cycles plus a timeout
+				// without a completed pass means the loop is wedged.
+				StaleAfter: 2*(interval+jitter) + current.rec.Config.Sync.PassTimeout(),
 				RunOnce: func(ctx context.Context) *syncpkg.Report {
 					mu.Lock()
 					rt := current
 					mu.Unlock()
-					return rt.rec.Run(ctx, false)
+					return runPass(ctx, rt.rec, false)
 				},
 				Reload: func(ctx context.Context) error {
 					next, err := build(ctx)
